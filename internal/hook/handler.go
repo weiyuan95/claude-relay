@@ -14,6 +14,7 @@ type Notifier interface {
 	SendPermissionRequest(req model.PermissionRequest) error
 	SendNotification(message string) error
 	CancelRequest(requestID string)
+	CancelAll(requests map[string]model.PermissionRequest, message string)
 }
 
 type Handler struct {
@@ -111,6 +112,50 @@ func (h *Handler) ResolveRequest(requestID string, decision model.PermissionDeci
 
 	ch <- decision
 	return nil
+}
+
+func (h *Handler) CancelAll() {
+	h.mu.Lock()
+	snapshot := make(map[string]model.PermissionRequest, len(h.requests))
+	for id, req := range h.requests {
+		snapshot[id] = req
+	}
+
+	for id, ch := range h.pending {
+		select {
+		case ch <- model.DecisionLocal:
+		default:
+		}
+		delete(h.pending, id)
+		delete(h.requests, id)
+	}
+	h.mu.Unlock()
+
+	if h.notifier != nil {
+		go h.notifier.CancelAll(snapshot, "handled locally")
+	}
+}
+
+func (h *Handler) ShutdownAll() {
+	h.mu.Lock()
+	snapshot := make(map[string]model.PermissionRequest, len(h.requests))
+	for id, req := range h.requests {
+		snapshot[id] = req
+	}
+
+	for id, ch := range h.pending {
+		select {
+		case ch <- model.DecisionLocal:
+		default:
+		}
+		delete(h.pending, id)
+		delete(h.requests, id)
+	}
+	h.mu.Unlock()
+
+	if h.notifier != nil {
+		h.notifier.CancelAll(snapshot, "cancelled — relay shutting down")
+	}
 }
 
 func (h *Handler) SetMode(mode model.Mode) {

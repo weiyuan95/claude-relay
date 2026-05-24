@@ -224,6 +224,17 @@ func (tg *Bot) CancelRequest(requestID string) {
 	tg.bot.Edit(msg, fmt.Sprintf("👌 <b>%s</b> — handled locally", summary), telebot.ModeHTML)
 }
 
+func (tg *Bot) CancelAll(requests map[string]model.PermissionRequest, message string) {
+	for id, req := range requests {
+		msg := tg.getMessage(id)
+		if msg == nil {
+			continue
+		}
+		summary := fmt.Sprintf("%s: %s", req.ToolName, truncate(req.InputPreview, 40))
+		tg.bot.Edit(msg, fmt.Sprintf("⚠️ <b>%s</b> — %s", summary, message), telebot.ModeHTML)
+	}
+}
+
 func (tg *Bot) Start() {
 	log.Println("Telegram bot started")
 	tg.bot.Start()

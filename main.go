@@ -76,6 +76,7 @@ func main() {
 	<-sigCh
 
 	log.Println("Shutting down...")
+	handler.ShutdownAll()
 	bot.Stop()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

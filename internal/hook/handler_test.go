@@ -31,6 +31,8 @@ func (m *mockNotifier) SendNotification(msg string) error {
 
 func (m *mockNotifier) CancelRequest(requestID string) {}
 
+func (m *mockNotifier) CancelAll(requests map[string]model.PermissionRequest, message string) {}
+
 func (m *mockNotifier) GetRequests() []model.PermissionRequest {
 	m.mu.Lock()
 	defer m.mu.Unlock()
