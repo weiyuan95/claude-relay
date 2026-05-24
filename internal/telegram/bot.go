@@ -144,9 +144,6 @@ func (tg *Bot) handleDeny(c telebot.Context) error {
 func (tg *Bot) handleCallback(c telebot.Context) error {
 	data := c.Data()
 
-	// Debug: show what we received
-	log.Printf("callback data: %q (len=%d)", data, len(data))
-
 	// Strip telebot internal prefix if present
 	data = strings.TrimPrefix(data, "\f")
 
