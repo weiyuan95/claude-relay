@@ -90,6 +90,8 @@ This merges the hook config into `~/.claude/settings.json`. Open a new Claude Co
 - **local** (default): Permission prompts appear in your terminal normally. Telegram gets a notification.
 - **telegram**: Prompts are sent to Telegram with Allow/Deny buttons. The hook waits for a Telegram response up to the configured timeout (default 300s). If you respond on Telegram, that decision is used. If you respond locally or it times out, falls back to the local prompt.
 
+> **Note:** Telegram mode does NOT disable local prompts. Both channels are always available — telegram mode just adds Telegram as an additional approval path. You can approve or deny from either your terminal or Telegram, whichever is faster.
+
 ### Responding locally in telegram mode
 
 When in telegram mode, the local prompt also appears. If you respond locally instead of via Telegram:
