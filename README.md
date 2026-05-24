@@ -81,9 +81,9 @@ This merges the hook config into `~/.claude/settings.json`. Open a new Claude Co
 | `/mode` | Show current mode |
 | `/mode local` | Switch to local mode (default prompts) |
 | `/mode telegram` | Switch to telegram mode (block for response) |
-| `/status` | Show pending requests |
-| `/allow <id>` | Approve a pending request |
-| `/deny <id>` | Deny a pending request |
+| `/status` | Show current mode and pending requests |
+
+Approve/deny is done via the inline buttons on each permission request message. Advanced users can also use `/allow <id>` and `/deny <id>` with IDs from `/status`.
 
 ### Modes
 
