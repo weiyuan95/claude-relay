@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -23,6 +24,22 @@ func main() {
 		log.Fatalf("Config error: %v", err)
 	}
 
+	mode := flag.String("mode", "", "Override default mode: local or telegram (overrides config)")
+	timeout := flag.Int("timeout", 0, "Telegram mode timeout in seconds (overrides config)")
+	notify := flag.Bool("notify", true, "Send Telegram notifications in local mode")
+	flag.Parse()
+
+	if *mode != "" {
+		if *mode != "local" && *mode != "telegram" {
+			log.Fatalf("Invalid mode: %s (use 'local' or 'telegram')", *mode)
+		}
+		cfg.DefaultMode = *mode
+	}
+	if *timeout > 0 {
+		cfg.TelegramModeTimeoutSeconds = *timeout
+	}
+	cfg.NotifyInLocalMode = *notify
+
 	var initialMode model.Mode
 	if cfg.DefaultMode == "telegram" {
 		initialMode = model.ModeTelegram
@@ -30,7 +47,6 @@ func main() {
 		initialMode = model.ModeLocal
 	}
 
-	// Create handler with nil notifier first (wired after bot creation)
 	handler := hook.NewHandler(
 		initialMode,
 		time.Duration(cfg.TelegramModeTimeoutSeconds)*time.Second,
@@ -38,7 +54,6 @@ func main() {
 		nil,
 	)
 
-	// Create bot with real handler (no nil handler issue)
 	bot, err := telegram.NewBot(
 		cfg.TelegramBotToken,
 		cfg.AllowedTelegramUserID,
@@ -49,10 +64,8 @@ func main() {
 		log.Fatalf("Telegram bot error: %v", err)
 	}
 
-	// Wire bot as the handler's notifier
 	handler.SetNotifier(bot)
 
-	// Create and start HTTP server with graceful shutdown support
 	srv := server.New(handler, cfg.Port)
 	httpServer := &http.Server{
 		Addr:    srv.Addr(),
@@ -68,9 +81,8 @@ func main() {
 
 	go bot.Start()
 
-	log.Printf("Claude Code Relay running (mode: %s, timeout: %ds)", initialMode, cfg.TelegramModeTimeoutSeconds)
+	log.Printf("Claude Code Relay running (mode: %s, timeout: %ds, notify: %v)", initialMode, cfg.TelegramModeTimeoutSeconds, cfg.NotifyInLocalMode)
 
-	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
