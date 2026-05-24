@@ -6,37 +6,6 @@ Relay Claude Code permission prompts to Telegram for remote approval/denial from
 >
 > **Status:** Work in progress. Core functionality is working but expect rough edges.
 
-## Why this instead of Claude Code Remote Control?
-
-Claude Code has a built-in [Remote Control](https://code.claude.com/docs/en/remote-control) feature that lets you continue a local session from your phone via claude.ai or the mobile app. It's the official solution and works well for full session control.
-
-This relay is a narrower, lighter alternative:
-
-| | Remote Control | This Relay |
-|---|---|---|
-| **What it does** | Full session handoff — chat, review, edit from mobile | Permission prompts only — approve/deny from mobile |
-| **Requires** | claude.ai login + active Claude subscription | Claude Code + a Telegram bot (both free) |
-| **Setup** | Built into Claude Code, enable via `/config` | Install a hook + run a local daemon |
-| **Network** | Routes through Anthropic's servers | Localhost only, no external dependencies beyond Telegram |
-| **Use case** | You want to actively code from your phone | You just want to tap approve/deny without opening a full session |
-
-If you already use Remote Control and it covers your needs, you don't need this. This project exists for people who prefer a lightweight Telegram-based approval flow without the full mobile session overhead.
-
-## How It Works
-
-1. A Claude Code `PermissionRequest` hook fires when a permission dialog would appear
-2. The hook script POSTs to a local Go HTTP server
-3. The server forwards the request to Telegram with inline Allow/Deny buttons
-4. In **telegram mode**, the hook blocks until you respond on Telegram (or times out, default 300s)
-5. In **local mode** (default), the local prompt appears normally and Telegram gets a notification
-
-### Responding locally in telegram mode
-
-When in telegram mode, the local prompt also appears. If you respond locally instead of via Telegram:
-- The Telegram message updates to show "handled locally" once the hook exits (up to the configured timeout)
-- If you respond on Telegram first, that decision is used instead
-- On relay shutdown (Ctrl+C), all pending messages update to "cancelled — relay shutting down"
-
 ## Setup
 
 ### Prerequisites
@@ -121,6 +90,13 @@ This merges the hook config into `~/.claude/settings.json`. Open a new Claude Co
 - **local** (default): Permission prompts appear in your terminal normally. Telegram gets a notification.
 - **telegram**: Prompts are sent to Telegram with Allow/Deny buttons. The hook waits for a Telegram response up to the configured timeout (default 300s). If you respond on Telegram, that decision is used. If you respond locally or it times out, falls back to the local prompt.
 
+### Responding locally in telegram mode
+
+When in telegram mode, the local prompt also appears. If you respond locally instead of via Telegram:
+- The Telegram message updates to show "handled locally" once the hook exits (up to the configured timeout)
+- If you respond on Telegram first, that decision is used instead
+- On relay shutdown (Ctrl+C), all pending messages update to "cancelled — relay shutting down"
+
 ### CLI Flags
 
 Flags override config file defaults:
@@ -141,6 +117,30 @@ Flags override config file defaults:
 | `default_mode` | local | Startup mode |
 | `telegram_mode_timeout_seconds` | 300 | How long to wait for Telegram response |
 | `notify_in_local_mode` | true | Send Telegram notifications in local mode |
+
+## Why this instead of Claude Code Remote Control?
+
+Claude Code has a built-in [Remote Control](https://code.claude.com/docs/en/remote-control) feature that lets you continue a local session from your phone via claude.ai or the mobile app. It's the official solution and works well for full session control.
+
+This relay is a narrower, lighter alternative:
+
+| | Remote Control | This Relay |
+|---|---|---|
+| **What it does** | Full session handoff — chat, review, edit from mobile | Permission prompts only — approve/deny from mobile |
+| **Requires** | claude.ai login + active Claude subscription | Claude Code + a Telegram bot (both free) |
+| **Setup** | Built into Claude Code, enable via `/config` | Install a hook + run a local daemon |
+| **Network** | Routes through Anthropic's servers | Localhost only, no external dependencies beyond Telegram |
+| **Use case** | You want to actively code from your phone | You just want to tap approve/deny without opening a full session |
+
+If you already use Remote Control and it covers your needs, you don't need this. This project exists for people who prefer a lightweight Telegram-based approval flow without the full mobile session overhead.
+
+## How It Works
+
+1. A Claude Code `PermissionRequest` hook fires when a permission dialog would appear
+2. The hook script POSTs to a local Go HTTP server
+3. The server forwards the request to Telegram with inline Allow/Deny buttons
+4. In **telegram mode**, the hook blocks until you respond on Telegram (or times out, default 300s)
+5. In **local mode** (default), the local prompt appears normally and Telegram gets a notification
 
 ## Architecture
 
