@@ -34,8 +34,9 @@ REQUEST_BODY=$(jq -n \
   --arg request_id "$REQ_ID" \
   '{tool_name: $tool_name, input_preview: $input_preview, session_id: $session_id, request_id: $request_id}')
 
-# Call the relay daemon with 300s timeout (must be <= hook timeout)
-RESPONSE=$(curl -s -S --max-time 300 -X POST \
+# Call the relay daemon with 60s timeout — gives time to respond on Telegram,
+# but ensures the EXIT trap fires quickly when user responds locally instead
+RESPONSE=$(curl -s -S --max-time 60 -X POST \
   "http://127.0.0.1:${PORT}/permission" \
   -H "Content-Type: application/json" \
   -d "$REQUEST_BODY" 2>/dev/null) || true
