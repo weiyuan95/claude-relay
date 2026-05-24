@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -21,8 +20,10 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestLoadFromValidFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, ".claude-relay.json")
+	cfgPath, err := ConfigPath()
+	if err != nil {
+		t.Fatalf("ConfigPath error: %v", err)
+	}
 
 	content := Config{
 		TelegramBotToken:           "test-token",
@@ -34,8 +35,7 @@ func TestLoadFromValidFile(t *testing.T) {
 	}
 	data, _ := json.Marshal(content)
 	os.WriteFile(cfgPath, data, 0600)
-
-	t.Setenv("HOME", tmpDir)
+	defer os.Remove(cfgPath)
 
 	cfg, err := Load()
 	if err != nil {
@@ -53,26 +53,30 @@ func TestLoadFromValidFile(t *testing.T) {
 }
 
 func TestLoadMissingFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
+	cfgPath, err := ConfigPath()
+	if err != nil {
+		t.Fatalf("ConfigPath error: %v", err)
+	}
+	os.Remove(cfgPath)
 
-	_, err := Load()
+	_, err = Load()
 	if err == nil {
 		t.Fatal("expected error for missing config file")
 	}
 }
 
 func TestLoadMissingToken(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, ".claude-relay.json")
+	cfgPath, err := ConfigPath()
+	if err != nil {
+		t.Fatalf("ConfigPath error: %v", err)
+	}
 
 	content := Config{AllowedTelegramUserID: 123456}
 	data, _ := json.Marshal(content)
 	os.WriteFile(cfgPath, data, 0600)
+	defer os.Remove(cfgPath)
 
-	t.Setenv("HOME", tmpDir)
-
-	_, err := Load()
+	_, err = Load()
 	if err == nil {
 		t.Fatal("expected error for missing telegram_bot_token")
 	}

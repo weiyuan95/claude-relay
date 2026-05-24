@@ -26,11 +26,11 @@ func DefaultConfig() Config {
 }
 
 func ConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
+	exe, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("get home dir: %w", err)
+		return "", fmt.Errorf("get executable path: %w", err)
 	}
-	return filepath.Join(home, ".claude-relay.json"), nil
+	return filepath.Join(filepath.Dir(exe), ".claude-relay.json"), nil
 }
 
 func Load() (Config, error) {
