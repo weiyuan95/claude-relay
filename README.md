@@ -25,13 +25,13 @@ If you already use Remote Control and it covers your needs, you don't need this.
 1. A Claude Code `PermissionRequest` hook fires when a permission dialog would appear
 2. The hook script POSTs to a local Go HTTP server
 3. The server forwards the request to Telegram with inline Allow/Deny buttons
-4. In **telegram mode**, the hook blocks until you respond on Telegram (or times out after 60s)
+4. In **telegram mode**, the hook blocks until you respond on Telegram (or times out, default 300s)
 5. In **local mode** (default), the local prompt appears normally and Telegram gets a notification
 
 ### Responding locally in telegram mode
 
 When in telegram mode, the local prompt also appears. If you respond locally instead of via Telegram:
-- The Telegram message updates to show "handled locally" once the hook exits (within ~60s)
+- The Telegram message updates to show "handled locally" once the hook exits (up to the configured timeout)
 - If you respond on Telegram first, that decision is used instead
 - On relay shutdown (Ctrl+C), all pending messages update to "cancelled — relay shutting down"
 
@@ -117,7 +117,7 @@ This merges the hook config into `~/.claude/settings.json`. Open a new Claude Co
 ### Modes
 
 - **local** (default): Permission prompts appear in your terminal normally. Telegram gets a notification.
-- **telegram**: Prompts are sent to Telegram with Allow/Deny buttons. The hook waits up to 60s for a Telegram response. If you respond on Telegram, that decision is used. If you respond locally or it times out, falls back to the local prompt.
+- **telegram**: Prompts are sent to Telegram with Allow/Deny buttons. The hook waits for a Telegram response up to the configured timeout (default 300s). If you respond on Telegram, that decision is used. If you respond locally or it times out, falls back to the local prompt.
 
 ### CLI Flags
 

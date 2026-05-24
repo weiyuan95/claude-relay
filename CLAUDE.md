@@ -8,7 +8,7 @@ A local Go service that relays Claude Code permission requests to Telegram, allo
 - **Modes**: `local` (default, non-blocking) vs `telegram` (blocking, waits for Telegram response)
 - **Hook type**: Claude Code `PermissionRequest` hook — fires when a permission dialog would appear
 - **Hook stdin JSON**: Claude Code sends `tool_name` and `tool_input` (with `command`/`description` fields), plus `session_id`. NOT `input` — the field is `tool_input`.
-- **Timeout**: Configurable, default 300s. Hook script uses 60s curl timeout.
+- **Timeout**: Configurable, default 300s. Hook script reads `telegram_mode_timeout_seconds` from config to set its curl timeout — both use the same value.
 - **Multiple sessions**: Supported via session IDs in Telegram messages
 - **CLI flags**: `-mode`, `-timeout`, `-notify` override config file defaults
 
