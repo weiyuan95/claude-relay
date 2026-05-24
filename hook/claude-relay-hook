@@ -8,15 +8,25 @@ set -euo pipefail
 INPUT=$(cat)
 PORT=7654
 
+# Debug: log raw input to help diagnose parsing issues
+DEBUG_LOG="/tmp/claude-relay-hook-debug.log"
+echo "$(date -u +%FT%TZ) raw input: $INPUT" >> "$DEBUG_LOG"
+
 # Extract tool info from stdin JSON for the request payload
+# Claude Code sends input as a JSON-encoded string for some tools
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
-INPUT_PREVIEW=$(echo "$INPUT" | jq -r '.input.input_preview // .input_preview // .input.command // empty')
+INPUT_PREVIEW=$(echo "$INPUT" | jq -r '
+  .tool_input.command // .tool_input.description // .tool_input.input_preview // empty
+')
+
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
 
 # Build the request body
 REQUEST_BODY=$(jq -n \
   --arg tool_name "$TOOL_NAME" \
   --arg input_preview "$INPUT_PREVIEW" \
-  '{tool_name: $tool_name, input_preview: $input_preview}')
+  --arg session_id "$SESSION_ID" \
+  '{tool_name: $tool_name, input_preview: $input_preview, session_id: $session_id}')
 
 # Call the relay daemon with 300s timeout (must be <= hook timeout)
 RESPONSE=$(curl -s -S --max-time 300 -X POST \
