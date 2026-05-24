@@ -13,6 +13,7 @@ import (
 type Notifier interface {
 	SendPermissionRequest(req model.PermissionRequest) error
 	SendNotification(message string) error
+	CancelRequest(requestID string)
 }
 
 type Handler struct {
@@ -84,8 +85,7 @@ func (h *Handler) HandleRequest(ctx context.Context, input model.HookInput) (mod
 		return decision, nil
 	case <-ctx.Done():
 		if h.notifier != nil {
-			msg := fmt.Sprintf("Request %s cancelled (approved locally)", reqID)
-			go h.notifier.SendNotification(msg)
+			go h.notifier.CancelRequest(reqID)
 		}
 		return model.DecisionLocal, nil
 	case <-time.After(h.timeout):

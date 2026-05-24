@@ -28,6 +28,7 @@ type Bot struct {
 	allowedID   int64
 	serverURL   string
 	summaries   map[string]string
+	messages    map[string]*telebot.Message
 	summariesMu sync.RWMutex
 }
 
@@ -48,6 +49,7 @@ func NewBot(token string, allowedID int64, handler HandlerInterface, serverURL s
 		allowedID: allowedID,
 		serverURL: serverURL,
 		summaries: make(map[string]string),
+		messages:  make(map[string]*telebot.Message),
 	}
 
 	tg.registerHandlers()
@@ -61,8 +63,8 @@ func (tg *Bot) registerHandlers() {
 	tg.bot.Handle("/allow", tg.auth(tg.handleAllow))
 	tg.bot.Handle("/deny", tg.auth(tg.handleDeny))
 
-	// Inline button callback — unique "perm" matches buttons created in SendPermissionRequest
-	tg.bot.Handle("\fperm", tg.auth(tg.handleCallback))
+	// Inline button callback
+	tg.bot.Handle(telebot.OnCallback, tg.auth(tg.handleCallback))
 }
 
 func (tg *Bot) auth(next telebot.HandlerFunc) telebot.HandlerFunc {
@@ -141,13 +143,22 @@ func (tg *Bot) handleDeny(c telebot.Context) error {
 
 func (tg *Bot) handleCallback(c telebot.Context) error {
 	data := c.Data()
-	// Callback data format: "allow:<id>" or "deny:<id>"
-	parts := strings.SplitN(data, ":", 2)
-	if len(parts) != 2 {
-		return c.Respond(&telebot.CallbackResponse{Text: "Invalid callback"})
-	}
 
-	action, reqID := parts[0], parts[1]
+	// Debug: show what we received
+	log.Printf("callback data: %q (len=%d)", data, len(data))
+
+	// Strip telebot internal prefix if present
+	data = strings.TrimPrefix(data, "\f")
+
+	// Try colon separator first (three-arg Data form), then underscore (two-arg form)
+	var action, reqID string
+	if parts := strings.SplitN(data, ":", 2); len(parts) == 2 && (parts[0] == "allow" || parts[0] == "deny") {
+		action, reqID = parts[0], parts[1]
+	} else if parts := strings.SplitN(data, "_", 2); len(parts) == 2 && (parts[0] == "allow" || parts[0] == "deny") {
+		action, reqID = parts[0], parts[1]
+	} else {
+		return c.Respond(&telebot.CallbackResponse{Text: fmt.Sprintf("Invalid: %q", data)})
+	}
 	var decision model.PermissionDecision
 
 	switch action {
@@ -185,19 +196,32 @@ func (tg *Bot) SendPermissionRequest(req model.PermissionRequest) error {
 		req.ToolName, cmd)
 
 	selector := &telebot.ReplyMarkup{}
-	btnAllow := selector.Data("✅ Allow", "perm", "allow:"+req.RequestID)
-	btnDeny := selector.Data("❌ Deny", "perm", "deny:"+req.RequestID)
+	btnAllow := selector.Data("✅ Allow", "allow_"+req.RequestID)
+	btnDeny := selector.Data("❌ Deny", "deny_"+req.RequestID)
 	selector.Inline(
 		selector.Row(btnAllow, btnDeny),
 	)
 
-	_, err := tg.bot.Send(telebot.ChatID(tg.allowedID), text, selector, telebot.ModeHTML)
-	return err
+	msg, err := tg.bot.Send(telebot.ChatID(tg.allowedID), text, selector, telebot.ModeHTML)
+	if err != nil {
+		return err
+	}
+	tg.saveMessage(req.RequestID, msg)
+	return nil
 }
 
 func (tg *Bot) SendNotification(message string) error {
 	_, err := tg.bot.Send(telebot.ChatID(tg.allowedID), message)
 	return err
+}
+
+func (tg *Bot) CancelRequest(requestID string) {
+	summary := tg.getSummary(requestID)
+	msg := tg.getMessage(requestID)
+	if msg == nil {
+		return
+	}
+	tg.bot.Edit(msg, fmt.Sprintf("👌 <b>%s</b> — approved locally", summary), telebot.ModeHTML)
 }
 
 func (tg *Bot) Start() {
@@ -222,6 +246,18 @@ func (tg *Bot) getSummary(reqID string) string {
 		return s
 	}
 	return reqID
+}
+
+func (tg *Bot) saveMessage(reqID string, msg *telebot.Message) {
+	tg.summariesMu.Lock()
+	defer tg.summariesMu.Unlock()
+	tg.messages[reqID] = msg
+}
+
+func (tg *Bot) getMessage(reqID string) *telebot.Message {
+	tg.summariesMu.RLock()
+	defer tg.summariesMu.RUnlock()
+	return tg.messages[reqID]
 }
 
 func truncate(s string, maxRunes int) string {
