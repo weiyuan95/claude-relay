@@ -38,7 +38,10 @@ func NewHandler(mode model.Mode, timeout time.Duration, notifyInLocal bool, noti
 }
 
 func (h *Handler) HandleRequest(ctx context.Context, input model.HookInput) (model.PermissionDecision, error) {
-	reqID := uuid.New().String()[:8]
+	reqID := input.RequestID
+	if reqID == "" {
+		reqID = uuid.New().String()[:8]
+	}
 	req := model.PermissionRequest{
 		RequestID:    reqID,
 		SessionID:    input.SessionID,
@@ -137,4 +140,24 @@ func (h *Handler) SetNotifier(n Notifier) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.notifier = n
+}
+
+func (h *Handler) HandleCancel(requestID string) {
+	h.mu.RLock()
+	ch, ok := h.pending[requestID]
+	h.mu.RUnlock()
+
+	if !ok {
+		return
+	}
+
+	// Send DecisionLocal so HandleRequest returns and cleans up
+	select {
+	case ch <- model.DecisionLocal:
+	default:
+	}
+
+	if h.notifier != nil {
+		go h.notifier.CancelRequest(requestID)
+	}
 }

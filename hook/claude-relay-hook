@@ -8,25 +8,31 @@ set -euo pipefail
 INPUT=$(cat)
 PORT=7654
 
-# Debug: log raw input to help diagnose parsing issues
-DEBUG_LOG="/tmp/claude-relay-hook-debug.log"
-echo "$(date -u +%FT%TZ) raw input: $INPUT" >> "$DEBUG_LOG"
+# Generate our own request ID so we can cancel on exit
+REQ_ID=$(head -c 4 /dev/urandom | xxd -p)
 
-# Extract tool info from stdin JSON for the request payload
-# Claude Code sends input as a JSON-encoded string for some tools
+# Cancel pending request when this script exits (user approved/denied locally)
+cleanup() {
+  curl -s -X POST "http://127.0.0.1:${PORT}/cancel" \
+    -H "Content-Type: application/json" \
+    -d "{\"request_id\":\"${REQ_ID}\"}" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+# Extract tool info from stdin JSON
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 INPUT_PREVIEW=$(echo "$INPUT" | jq -r '
   .tool_input.command // .tool_input.description // .tool_input.input_preview // empty
 ')
-
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
 
-# Build the request body
+# Build the request body with our request ID
 REQUEST_BODY=$(jq -n \
   --arg tool_name "$TOOL_NAME" \
   --arg input_preview "$INPUT_PREVIEW" \
   --arg session_id "$SESSION_ID" \
-  '{tool_name: $tool_name, input_preview: $input_preview, session_id: $session_id}')
+  --arg request_id "$REQ_ID" \
+  '{tool_name: $tool_name, input_preview: $input_preview, session_id: $session_id, request_id: $request_id}')
 
 # Call the relay daemon with 300s timeout (must be <= hook timeout)
 RESPONSE=$(curl -s -S --max-time 300 -X POST \
@@ -34,11 +40,8 @@ RESPONSE=$(curl -s -S --max-time 300 -X POST \
   -H "Content-Type: application/json" \
   -d "$REQUEST_BODY" 2>/dev/null) || true
 
-echo "$(date -u +%FT%TZ) response: $RESPONSE" >> "$DEBUG_LOG"
-
 # If daemon is unreachable or response is empty, fall through to local prompt
 if [ -z "$RESPONSE" ]; then
-  echo "$(date -u +%FT%TZ) empty response, falling back to local" >> "$DEBUG_LOG"
   exit 0
 fi
 

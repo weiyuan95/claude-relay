@@ -27,6 +27,7 @@ func New(handler *hook.Handler, port int) *Server {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("POST /permission", s.handlePermission)
+	s.mux.HandleFunc("POST /cancel", s.handleCancel)
 	s.mux.HandleFunc("GET /status", s.handleStatus)
 	s.mux.HandleFunc("POST /mode", s.handleMode)
 }
@@ -91,6 +92,21 @@ func (s *Server) handleMode(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 		"mode":   string(req.Mode),
 	})
+}
+
+func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RequestID string `json:"request_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("parse request: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	s.handler.HandleCancel(req.RequestID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func (s *Server) Addr() string {

@@ -36,6 +36,7 @@ type HookInput struct {
 	Description  string `json:"description"`
 	InputPreview string `json:"input_preview"`
 	SessionID    string `json:"session_id"`
+	RequestID    string `json:"request_id"`
 }
 
 type HookOutput struct {
