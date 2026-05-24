@@ -3,6 +3,8 @@
 Relay Claude Code permission prompts to Telegram for remote approval/denial from your phone.
 
 > **Disclaimer:** This project was fully vibe-coded with AI (Claude Code). It works, but you should review the code before relying on it for anything sensitive.
+>
+> **Status:** Work in progress. Core functionality is working but expect rough edges.
 
 ## Why this instead of Claude Code Remote Control?
 
