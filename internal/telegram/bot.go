@@ -221,7 +221,7 @@ func (tg *Bot) CancelRequest(requestID string) {
 	if msg == nil {
 		return
 	}
-	tg.bot.Edit(msg, fmt.Sprintf("👌 <b>%s</b> — approved locally", summary), telebot.ModeHTML)
+	tg.bot.Edit(msg, fmt.Sprintf("👌 <b>%s</b> — handled locally", summary), telebot.ModeHTML)
 }
 
 func (tg *Bot) Start() {
