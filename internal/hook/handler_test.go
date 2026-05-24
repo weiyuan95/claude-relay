@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -38,7 +39,7 @@ func TestLocalMode_ReturnsLocal(t *testing.T) {
 	notifier := &mockNotifier{}
 	h := NewHandler(model.ModeLocal, 5*time.Second, false, notifier)
 
-	decision, err := h.HandleRequest(model.HookInput{
+	decision, err := h.HandleRequest(context.Background(), model.HookInput{
 		ToolName:     "Bash",
 		InputPreview: "git status",
 	})
@@ -54,7 +55,7 @@ func TestLocalMode_SendsNotification(t *testing.T) {
 	notifier := &mockNotifier{}
 	h := NewHandler(model.ModeLocal, 5*time.Second, true, notifier)
 
-	h.HandleRequest(model.HookInput{ToolName: "Bash", InputPreview: "git status"})
+	h.HandleRequest(context.Background(), model.HookInput{ToolName: "Bash", InputPreview: "git status"})
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -72,7 +73,7 @@ func TestTelegramMode_ResolvesAllow(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		decision, err = h.HandleRequest(model.HookInput{
+		decision, err = h.HandleRequest(context.Background(), model.HookInput{
 			ToolName:     "Bash",
 			InputPreview: "git push",
 		})
@@ -105,7 +106,7 @@ func TestTelegramMode_ResolvesDeny(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		decision, _ = h.HandleRequest(model.HookInput{
+		decision, _ = h.HandleRequest(context.Background(), model.HookInput{
 			ToolName:     "Bash",
 			InputPreview: "rm -rf /",
 		})
@@ -126,7 +127,7 @@ func TestTelegramMode_Timeout(t *testing.T) {
 	notifier := &mockNotifier{}
 	h := NewHandler(model.ModeTelegram, 100*time.Millisecond, false, notifier)
 
-	decision, err := h.HandleRequest(model.HookInput{
+	decision, err := h.HandleRequest(context.Background(), model.HookInput{
 		ToolName:     "Bash",
 		InputPreview: "git push",
 	})
@@ -167,10 +168,43 @@ func TestSetNotifier(t *testing.T) {
 	notifier := &mockNotifier{}
 	h.SetNotifier(notifier)
 
-	h.HandleRequest(model.HookInput{ToolName: "Bash", InputPreview: "test"})
+	h.HandleRequest(context.Background(), model.HookInput{ToolName: "Bash", InputPreview: "test"})
 	time.Sleep(50 * time.Millisecond)
 
 	if len(notifier.notifications) != 1 {
 		t.Errorf("expected 1 notification after SetNotifier, got %d", len(notifier.notifications))
+	}
+}
+
+func TestTelegramMode_ContextCancelled(t *testing.T) {
+	notifier := &mockNotifier{}
+	h := NewHandler(model.ModeTelegram, 5*time.Second, false, notifier)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var decision model.PermissionDecision
+	done := make(chan struct{})
+
+	go func() {
+		decision, _ = h.HandleRequest(ctx, model.HookInput{
+			ToolName:     "Bash",
+			InputPreview: "git push",
+		})
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Simulate client disconnect (user approved locally)
+	cancel()
+
+	<-done
+	if decision != model.DecisionLocal {
+		t.Errorf("expected DecisionLocal on context cancel, got %s", decision)
+	}
+
+	// Request should be cleaned up from pending
+	if len(h.GetPendingRequests()) != 0 {
+		t.Errorf("expected 0 pending requests after cancel, got %d", len(h.GetPendingRequests()))
 	}
 }

@@ -34,8 +34,11 @@ RESPONSE=$(curl -s -S --max-time 300 -X POST \
   -H "Content-Type: application/json" \
   -d "$REQUEST_BODY" 2>/dev/null) || true
 
+echo "$(date -u +%FT%TZ) response: $RESPONSE" >> "$DEBUG_LOG"
+
 # If daemon is unreachable or response is empty, fall through to local prompt
 if [ -z "$RESPONSE" ]; then
+  echo "$(date -u +%FT%TZ) empty response, falling back to local" >> "$DEBUG_LOG"
   exit 0
 fi
 

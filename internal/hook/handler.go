@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -35,7 +36,7 @@ func NewHandler(mode model.Mode, timeout time.Duration, notifyInLocal bool, noti
 	}
 }
 
-func (h *Handler) HandleRequest(input model.HookInput) (model.PermissionDecision, error) {
+func (h *Handler) HandleRequest(ctx context.Context, input model.HookInput) (model.PermissionDecision, error) {
 	reqID := uuid.New().String()[:8]
 	req := model.PermissionRequest{
 		RequestID:    reqID,
@@ -81,6 +82,12 @@ func (h *Handler) HandleRequest(input model.HookInput) (model.PermissionDecision
 	select {
 	case decision := <-ch:
 		return decision, nil
+	case <-ctx.Done():
+		if h.notifier != nil {
+			msg := fmt.Sprintf("Request %s cancelled (approved locally)", reqID)
+			go h.notifier.SendNotification(msg)
+		}
+		return model.DecisionLocal, nil
 	case <-time.After(h.timeout):
 		if h.notifier != nil {
 			msg := fmt.Sprintf("Request %s timed out, fell back to local prompt", reqID)

@@ -47,7 +47,7 @@ func (s *Server) handlePermission(w http.ResponseWriter, r *http.Request) {
 		input.SessionID = "default"
 	}
 
-	decision, err := s.handler.HandleRequest(input)
+	decision, err := s.handler.HandleRequest(r.Context(), input)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("handle request: %v", err), http.StatusInternalServerError)
 		return
