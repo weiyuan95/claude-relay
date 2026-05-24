@@ -2,6 +2,24 @@
 
 Relay Claude Code permission prompts to Telegram for remote approval/denial from your phone.
 
+> **Disclaimer:** This project was fully vibe-coded with AI (Claude Code). It works, but you should review the code before relying on it for anything sensitive.
+
+## Why this instead of Claude Code Remote Control?
+
+Claude Code has a built-in [Remote Control](https://code.claude.com/docs/en/remote-control) feature that lets you continue a local session from your phone via claude.ai or the mobile app. It's the official solution and works well for full session control.
+
+This relay is a narrower, lighter alternative:
+
+| | Remote Control | This Relay |
+|---|---|---|
+| **What it does** | Full session handoff — chat, review, edit from mobile | Permission prompts only — approve/deny from mobile |
+| **Requires** | claude.ai login + active Claude subscription | Claude Code + a Telegram bot (both free) |
+| **Setup** | Built into Claude Code, enable via `/config` | Install a hook + run a local daemon |
+| **Network** | Routes through Anthropic's servers | Localhost only, no external dependencies beyond Telegram |
+| **Use case** | You want to actively code from your phone | You just want to tap approve/deny without opening a full session |
+
+If you already use Remote Control and it covers your needs, you don't need this. This project exists for people who prefer a lightweight Telegram-based approval flow without the full mobile session overhead.
+
 ## How It Works
 
 1. A Claude Code `PermissionRequest` hook fires when a permission dialog would appear
