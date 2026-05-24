@@ -1,0 +1,46 @@
+#!/bin/bash
+# claude-relay-hook — Claude Code PermissionRequest hook
+# Reads JSON from stdin, sends to local relay daemon, outputs decision.
+# Falls back to local prompt on any error.
+
+set -euo pipefail
+
+INPUT=$(cat)
+PORT=7654
+
+# Extract tool info from stdin JSON for the request payload
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
+INPUT_PREVIEW=$(echo "$INPUT" | jq -r '.input.input_preview // .input_preview // .input.command // empty')
+
+# Build the request body
+REQUEST_BODY=$(jq -n \
+  --arg tool_name "$TOOL_NAME" \
+  --arg input_preview "$INPUT_PREVIEW" \
+  '{tool_name: $tool_name, input_preview: $input_preview}')
+
+# Call the relay daemon with 300s timeout (must be <= hook timeout)
+RESPONSE=$(curl -s -S --max-time 300 -X POST \
+  "http://127.0.0.1:${PORT}/permission" \
+  -H "Content-Type: application/json" \
+  -d "$REQUEST_BODY" 2>/dev/null) || true
+
+# If daemon is unreachable or response is empty, fall through to local prompt
+if [ -z "$RESPONSE" ]; then
+  exit 0
+fi
+
+# Parse the decision
+DECISION=$(echo "$RESPONSE" | jq -r '.decision // empty')
+
+case "$DECISION" in
+  "allow")
+    echo '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
+    ;;
+  "deny")
+    echo '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny"}}}'
+    ;;
+  *)
+    # "local" or unknown — fall through to local prompt
+    exit 0
+    ;;
+esac
