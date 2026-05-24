@@ -5,6 +5,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	telebot "gopkg.in/telebot.v3"
@@ -22,10 +23,12 @@ type HandlerInterface interface {
 }
 
 type Bot struct {
-	bot       *telebot.Bot
-	handler   HandlerInterface
-	allowedID int64
-	serverURL string
+	bot         *telebot.Bot
+	handler     HandlerInterface
+	allowedID   int64
+	serverURL   string
+	summaries   map[string]string
+	summariesMu sync.RWMutex
 }
 
 func NewBot(token string, allowedID int64, handler HandlerInterface, serverURL string) (*Bot, error) {
@@ -44,6 +47,7 @@ func NewBot(token string, allowedID int64, handler HandlerInterface, serverURL s
 		handler:   handler,
 		allowedID: allowedID,
 		serverURL: serverURL,
+		summaries: make(map[string]string),
 	}
 
 	tg.registerHandlers()
@@ -57,8 +61,8 @@ func (tg *Bot) registerHandlers() {
 	tg.bot.Handle("/allow", tg.auth(tg.handleAllow))
 	tg.bot.Handle("/deny", tg.auth(tg.handleDeny))
 
-	// Inline button callback
-	tg.bot.Handle(telebot.OnCallback, tg.auth(tg.handleCallback))
+	// Inline button callback — unique "perm" matches buttons created in SendPermissionRequest
+	tg.bot.Handle("\fperm", tg.auth(tg.handleCallback))
 }
 
 func (tg *Bot) auth(next telebot.HandlerFunc) telebot.HandlerFunc {
@@ -159,28 +163,35 @@ func (tg *Bot) handleCallback(c telebot.Context) error {
 		return c.Respond(&telebot.CallbackResponse{Text: fmt.Sprintf("Error: %v", err)})
 	}
 
-	// Update the message to show the decision
+	summary := tg.getSummary(reqID)
+
 	emoji := "✅"
+	label := "Allowed"
 	if decision == model.DecisionDeny {
 		emoji = "❌"
+		label = "Denied"
 	}
 
-	c.Edit(fmt.Sprintf("%s Request %s — %s", emoji, reqID, decision))
-	return c.Respond(&telebot.CallbackResponse{Text: fmt.Sprintf("%s %s", emoji, decision)})
+	c.Edit(fmt.Sprintf("%s <b>%s</b> — %s", emoji, summary, label), telebot.ModeHTML)
+	return c.Respond(&telebot.CallbackResponse{Text: fmt.Sprintf("%s %s", emoji, label)})
 }
 
 func (tg *Bot) SendPermissionRequest(req model.PermissionRequest) error {
-	text := fmt.Sprintf("Permission Request [%s]\n\nTool: %s\nCommand: %s\n\nID: %s",
-		req.SessionID, req.ToolName, req.InputPreview, req.RequestID)
+	summary := fmt.Sprintf("%s: %s", req.ToolName, truncate(req.InputPreview, 40))
+	tg.saveSummary(req.RequestID, summary)
+
+	cmd := truncate(req.InputPreview, 200)
+	text := fmt.Sprintf("🔐 <b>Permission Request</b>\n\n<b>Tool:</b> %s\n<b>Command:</b>\n<code>%s</code>",
+		req.ToolName, cmd)
 
 	selector := &telebot.ReplyMarkup{}
-	btnAllow := selector.Data("✅ Allow", "allow:"+req.RequestID)
-	btnDeny := selector.Data("❌ Deny", "deny:"+req.RequestID)
+	btnAllow := selector.Data("✅ Allow", "perm", "allow:"+req.RequestID)
+	btnDeny := selector.Data("❌ Deny", "perm", "deny:"+req.RequestID)
 	selector.Inline(
 		selector.Row(btnAllow, btnDeny),
 	)
 
-	_, err := tg.bot.Send(telebot.ChatID(tg.allowedID), text, selector)
+	_, err := tg.bot.Send(telebot.ChatID(tg.allowedID), text, selector, telebot.ModeHTML)
 	return err
 }
 
@@ -196,6 +207,21 @@ func (tg *Bot) Start() {
 
 func (tg *Bot) Stop() {
 	tg.bot.Stop()
+}
+
+func (tg *Bot) saveSummary(reqID, summary string) {
+	tg.summariesMu.Lock()
+	tg.summaries[reqID] = summary
+	tg.summariesMu.Unlock()
+}
+
+func (tg *Bot) getSummary(reqID string) string {
+	tg.summariesMu.RLock()
+	defer tg.summariesMu.RUnlock()
+	if s, ok := tg.summaries[reqID]; ok {
+		return s
+	}
+	return reqID
 }
 
 func truncate(s string, maxRunes int) string {
